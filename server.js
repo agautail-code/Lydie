@@ -25,15 +25,16 @@ app.post('/api/download', async (req, res) => {
   const outputPath = path.join(__dirname, `audio_${timestamp}.%(ext)s`);
   const cookiesPath = path.join(__dirname, 'cookies.txt');
 
+  // Options optimisées pour contourner les blocages Render / Cloud
   const options = {
-    format: 'ba/b', // Prends la meilleure piste audio ou n'importe quel format par défaut
     output: outputPath,
     noCheckCertificates: true,
     noWarnings: true,
-    extractorArgs: 'youtube:player_client=android,web', // Emule un navigateur mobile/web pour éviter les blocages Render
+    // On force l'utilisation des clients iOS et TV pour passer outre les restrictions DataCenter
+    extractorArgs: 'youtube:player_client=ios,mweb,tv',
     addHeader: [
       'referer:https://www.youtube.com/',
-      'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      'user-agent:Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1'
     ]
   };
 
@@ -46,19 +47,17 @@ app.post('/api/download', async (req, res) => {
 
     await ytdlp(url, options);
 
-    // Recherche du fichier créé avec le timestamp
+    // Trouver le fichier téléchargé
     const files = fs.readdirSync(__dirname);
     const downloadedFile = files.find(file => file.startsWith(`audio_${timestamp}`));
 
     if (!downloadedFile) {
-      throw new Error("Fichier introuvable après téléchargement");
+      throw new Error("Fichier introuvable après le téléchargement");
     }
 
     const fullPath = path.join(__dirname, downloadedFile);
 
-    // Téléchargement du fichier par le client
-    res.download(fullPath, `${downloadedFile}`, (err) => {
-      // Nettoyage du fichier temporaire après l'envoi
+    res.download(fullPath, downloadedFile, (err) => {
       if (fs.existsSync(fullPath)) {
         fs.unlinkSync(fullPath);
       }
@@ -67,7 +66,6 @@ app.post('/api/download', async (req, res) => {
   } catch (error) {
     console.error("Erreur yt-dlp détaillée :", error);
 
-    // Nettoyage si erreur
     try {
       const files = fs.readdirSync(__dirname);
       const failedFile = files.find(file => file.startsWith(`audio_${timestamp}`));
