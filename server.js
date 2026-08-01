@@ -25,15 +25,18 @@ app.post('/api/download', async (req, res) => {
   const outputPath = path.join(__dirname, `audio_${timestamp}.%(ext)s`);
   const cookiesPath = path.join(__dirname, 'cookies.txt');
 
-  // Configuration universelle : évite de bloquer sur un format spécifique
   const options = {
     output: outputPath,
+    // Spécifier de prendre le meilleur flux audio disponible
+    format: 'bestaudio/best',
+    extractAudio: true,
+    audioFormat: 'mp3',
     noCheckCertificates: true,
     noWarnings: true,
-    // Emulation de l'application Android pour contourner le blocage cloud Render
-    extractorArgs: 'youtube:player_client=android',
+    // Client web / ios combiné pour assurer la disponibilité des flux
+    extractorArgs: 'youtube:player_client=ios,web',
     addHeader: [
-      'user-agent:Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36'
+      'user-agent:Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1'
     ]
   };
 
@@ -46,7 +49,6 @@ app.post('/api/download', async (req, res) => {
 
     await ytdlp(url, options);
 
-    // Récupération du fichier généré quel que soit son extension (.m4a, .webm, .mp3, etc.)
     const files = fs.readdirSync(__dirname);
     const downloadedFile = files.find(file => file.startsWith(`audio_${timestamp}`));
 
@@ -56,7 +58,6 @@ app.post('/api/download', async (req, res) => {
 
     const fullPath = path.join(__dirname, downloadedFile);
 
-    // Envoi du fichier au navigateur
     res.download(fullPath, 'musique.mp3', (err) => {
       if (fs.existsSync(fullPath)) {
         fs.unlinkSync(fullPath);
