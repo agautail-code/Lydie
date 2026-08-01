@@ -21,18 +21,16 @@ app.post('/api/download', async (req, res) => {
     return res.status(400).json({ error: 'URL manquante' });
   }
 
-  // Nom de fichier temporaire
   const timestamp = Date.now();
   const outputPath = path.join(__dirname, `audio_${timestamp}.%(ext)s`);
   const cookiesPath = path.join(__dirname, 'cookies.txt');
 
-  // Options ajustées pour s'adapter à l'environnement Render sans ffmpeg lourd
   const options = {
-    format: 'bestaudio/best',
+    format: 'ba/b', // Prends la meilleure piste audio ou n'importe quel format par défaut
     output: outputPath,
     noCheckCertificates: true,
     noWarnings: true,
-    preferFreeFormats: true,
+    extractorArgs: 'youtube:player_client=android,web', // Emule un navigateur mobile/web pour éviter les blocages Render
     addHeader: [
       'referer:https://www.youtube.com/',
       'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
@@ -45,23 +43,22 @@ app.post('/api/download', async (req, res) => {
 
   try {
     console.log(`Début du téléchargement pour : ${url}`);
-    
-    // Téléchargement via yt-dlp
+
     await ytdlp(url, options);
 
-    // Chercher le fichier généré dans le dossier racine
+    // Recherche du fichier créé avec le timestamp
     const files = fs.readdirSync(__dirname);
     const downloadedFile = files.find(file => file.startsWith(`audio_${timestamp}`));
 
     if (!downloadedFile) {
-      throw new Error("Fichier introuvable après le téléchargement");
+      throw new Error("Fichier introuvable après téléchargement");
     }
 
     const fullPath = path.join(__dirname, downloadedFile);
 
-    // Envoi du fichier au navigateur
-    res.download(fullPath, 'musique.mp3', (err) => {
-      // Suppression du fichier temporaire après envoi
+    // Téléchargement du fichier par le client
+    res.download(fullPath, `${downloadedFile}`, (err) => {
+      // Nettoyage du fichier temporaire après l'envoi
       if (fs.existsSync(fullPath)) {
         fs.unlinkSync(fullPath);
       }
@@ -70,11 +67,15 @@ app.post('/api/download', async (req, res) => {
   } catch (error) {
     console.error("Erreur yt-dlp détaillée :", error);
 
-    // Nettoyage en cas d'erreur
-    const files = fs.readdirSync(__dirname);
-    const failedFile = files.find(file => file.startsWith(`audio_${timestamp}`));
-    if (failedFile) {
-      fs.unlinkSync(path.join(__dirname, failedFile));
+    // Nettoyage si erreur
+    try {
+      const files = fs.readdirSync(__dirname);
+      const failedFile = files.find(file => file.startsWith(`audio_${timestamp}`));
+      if (failedFile) {
+        fs.unlinkSync(path.join(__dirname, failedFile));
+      }
+    } catch (cleanErr) {
+      console.error("Erreur nettoyage :", cleanErr);
     }
 
     res.status(500).json({ error: 'Erreur lors de la conversion ou du téléchargement' });
