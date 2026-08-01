@@ -3,15 +3,16 @@ const cors = require('cors');
 const ytdlp = require('yt-dlp-exec');
 const path = require('path');
 const fs = require('fs');
+const ffmpegPath = require('ffmpeg-static');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 
 app.use(cors());
 app.use(express.json());
 
 app.get('/', (req, res) => {
-  res.send('API Backend opérationnelle');
+  res.send('API Backend MP3 opérationnelle');
 });
 
 app.post('/api/download', async (req, res) => {
@@ -22,18 +23,18 @@ app.post('/api/download', async (req, res) => {
   }
 
   const timestamp = Date.now();
-  const outputPath = path.join(__dirname, `audio_${timestamp}.%(ext)s`);
+  const outputPath = path.join(__dirname, `audio_${timestamp}.mp3`);
   const cookiesPath = path.join(__dirname, 'cookies.txt');
 
   const options = {
     output: outputPath,
-    // Spécifier de prendre le meilleur flux audio disponible
     format: 'bestaudio/best',
     extractAudio: true,
     audioFormat: 'mp3',
+    audioQuality: '0',
+    ffmpegLocation: ffmpegPath,
     noCheckCertificates: true,
     noWarnings: true,
-    // Client web / ios combiné pour assurer la disponibilité des flux
     extractorArgs: 'youtube:player_client=ios,web',
     addHeader: [
       'user-agent:Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1'
@@ -45,39 +46,25 @@ app.post('/api/download', async (req, res) => {
   }
 
   try {
-    console.log(`Début du téléchargement pour : ${url}`);
-
     await ytdlp(url, options);
 
-    const files = fs.readdirSync(__dirname);
-    const downloadedFile = files.find(file => file.startsWith(`audio_${timestamp}`));
-
-    if (!downloadedFile) {
-      throw new Error("Fichier introuvable après le téléchargement");
+    if (!fs.existsSync(outputPath)) {
+      throw new Error("Le fichier MP3 n'a pas été généré");
     }
 
-    const fullPath = path.join(__dirname, downloadedFile);
-
-    res.download(fullPath, 'musique.mp3', (err) => {
-      if (fs.existsSync(fullPath)) {
-        fs.unlinkSync(fullPath);
+    res.download(outputPath, 'musique.mp3', (err) => {
+      if (fs.existsSync(outputPath)) {
+        fs.unlinkSync(outputPath);
       }
     });
 
   } catch (error) {
-    console.error("Erreur yt-dlp :", error);
-
-    try {
-      const files = fs.readdirSync(__dirname);
-      const failedFile = files.find(file => file.startsWith(`audio_${timestamp}`));
-      if (failedFile) {
-        fs.unlinkSync(path.join(__dirname, failedFile));
-      }
-    } catch (cleanErr) {
-      console.error("Nettoyage impossible :", cleanErr);
+    if (fs.existsSync(outputPath)) {
+      try {
+        fs.unlinkSync(outputPath);
+      } catch (cleanErr) {}
     }
-
-    res.status(500).json({ error: 'Erreur lors du téléchargement' });
+    res.status(500).json({ error: 'Erreur lors de la conversion ou du téléchargement' });
   }
 });
 
