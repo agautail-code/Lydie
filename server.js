@@ -35,9 +35,8 @@ app.post('/api/download', async (req, res) => {
     ffmpegLocation: ffmpegPath,
     noCheckCertificates: true,
     noWarnings: true,
-    extractorArgs: 'youtube:player_client=ios,web',
     addHeader: [
-      'user-agent:Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1'
+      'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
     ]
   };
 
@@ -46,6 +45,7 @@ app.post('/api/download', async (req, res) => {
   }
 
   try {
+    console.log(`Début de la conversion MP3 pour : ${url}`);
     await ytdlp(url, options);
 
     if (!fs.existsSync(outputPath)) {
@@ -59,12 +59,15 @@ app.post('/api/download', async (req, res) => {
     });
 
   } catch (error) {
+    console.error("Erreur serveur :", error);
+
     if (fs.existsSync(outputPath)) {
       try {
         fs.unlinkSync(outputPath);
       } catch (cleanErr) {}
     }
-    res.status(500).json({ error: 'Erreur lors de la conversion ou du téléchargement' });
+
+    res.status(500).json({ error: 'Erreur lors de la conversion sur le serveur' });
   }
 });
 
