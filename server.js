@@ -25,16 +25,15 @@ app.post('/api/download', async (req, res) => {
   const outputPath = path.join(__dirname, `audio_${timestamp}.%(ext)s`);
   const cookiesPath = path.join(__dirname, 'cookies.txt');
 
-  // Options optimisées pour contourner les blocages Render / Cloud
+  // Configuration universelle : évite de bloquer sur un format spécifique
   const options = {
     output: outputPath,
     noCheckCertificates: true,
     noWarnings: true,
-    // On force l'utilisation des clients iOS et TV pour passer outre les restrictions DataCenter
-    extractorArgs: 'youtube:player_client=ios,mweb,tv',
+    // Emulation de l'application Android pour contourner le blocage cloud Render
+    extractorArgs: 'youtube:player_client=android',
     addHeader: [
-      'referer:https://www.youtube.com/',
-      'user-agent:Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1'
+      'user-agent:Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36'
     ]
   };
 
@@ -47,7 +46,7 @@ app.post('/api/download', async (req, res) => {
 
     await ytdlp(url, options);
 
-    // Trouver le fichier téléchargé
+    // Récupération du fichier généré quel que soit son extension (.m4a, .webm, .mp3, etc.)
     const files = fs.readdirSync(__dirname);
     const downloadedFile = files.find(file => file.startsWith(`audio_${timestamp}`));
 
@@ -57,14 +56,15 @@ app.post('/api/download', async (req, res) => {
 
     const fullPath = path.join(__dirname, downloadedFile);
 
-    res.download(fullPath, downloadedFile, (err) => {
+    // Envoi du fichier au navigateur
+    res.download(fullPath, 'musique.mp3', (err) => {
       if (fs.existsSync(fullPath)) {
         fs.unlinkSync(fullPath);
       }
     });
 
   } catch (error) {
-    console.error("Erreur yt-dlp détaillée :", error);
+    console.error("Erreur yt-dlp :", error);
 
     try {
       const files = fs.readdirSync(__dirname);
@@ -73,10 +73,10 @@ app.post('/api/download', async (req, res) => {
         fs.unlinkSync(path.join(__dirname, failedFile));
       }
     } catch (cleanErr) {
-      console.error("Erreur nettoyage :", cleanErr);
+      console.error("Nettoyage impossible :", cleanErr);
     }
 
-    res.status(500).json({ error: 'Erreur lors de la conversion ou du téléchargement' });
+    res.status(500).json({ error: 'Erreur lors du téléchargement' });
   }
 });
 
